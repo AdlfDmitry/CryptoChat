@@ -7,7 +7,8 @@ client, addr = server.accept()
 done = False
 while not done:
     msg = client.recv(1024).decode('utf-8')
-    print(msg)
+    if not msg:
+        break  # якщо клієнт відключився
+    print(f"Отримано дані: {msg}")  # ОЦЕ виведеться в термінал
     if msg == 'quit':
         done = True
-    client.send(input("Message: ").encode('utf-8'))
