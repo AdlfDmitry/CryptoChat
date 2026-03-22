@@ -1,4 +1,11 @@
 import secrets
-key = secrets.token_bytes(32)
-key_hex = secrets.token_hex(32)
-print(f"Ключ: {key_hex}")
+def generate_key():
+    try:
+        key = secrets.token_bytes(32)
+        print("AES key generated successfully")
+        return key
+
+    except Exception as e:
+        print(f"Key generation failed",e)
+        return None
+
