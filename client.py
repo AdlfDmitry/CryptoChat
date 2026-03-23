@@ -1,4 +1,5 @@
 import socket
+import json
 def send_request(data_string):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -6,17 +7,27 @@ def send_request(data_string):
         client.send(data_string.encode('utf-8'))
         client.close()
     except ConnectionRefusedError:
-        print("Connection refused")
-
+        print("❌Connection refused")
+    pass
 def register(username, password):
-    data = f"reg:{username}:{password}"
+    payload = {
+        "action": "reg",
+        "username": username,
+        "password": password
+    }
+    data = json.dumps(payload)
     send_request(data)
 
 def auth(username, password):
-    data = f"auth:{username}:{password}"
+    payload = {
+        "action": "auth",
+        "username": username,
+        "password": password
+    }
+    data = json.dumps(payload)
     send_request(data)
 
 def quit():
-    send_request("quit")
-def start(key_pub):
-    send_request(key_pub)
+    payload = {"action": "quit"}
+    data = json.dumps(payload)
+    send_request(data)

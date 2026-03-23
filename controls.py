@@ -1,9 +1,8 @@
-from client import register, quit, auth, start
+from client import register, quit, auth
 from ecdh_key_gen import ecdh_key_gen
 if __name__ == "__main__":
-    key_pub,key_private = ecdh_key_gen()
-    if key_pub is not None and key_private is not None:
-        start(key_pub)
+    key_private, key_pub = ecdh_key_gen()
+    if key_private is not None and key_pub is not None:
         close = False
         while not close:
             user_input = input("> ").lower().strip()
@@ -20,7 +19,7 @@ if __name__ == "__main__":
                     password = input("Enter password> ")
                     auth(username, password)
                 case _:
-                    print("!!")
+                    print("❌!!")
 else:
-    print("missing keys")
+    print("❌missing keys")
     close = True
