@@ -1,33 +1,45 @@
 import socket
 import json
-def send_request(data_string):
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+import threading
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+def receive_msg():
+    while True:
+        try:
+            msg = client_socket.recv(1024).decode("utf-8")
+            if not msg:
+                print("Connection lost")
+                break
+            print(msg)
+        except Exception as e:
+            print(f"Connection lost: {e}")
+            break
+
+def connect_to_server():
     try:
-        client.connect(('localhost', 9999))
-        client.send(data_string.encode('utf-8'))
-        client.close()
+        client_socket.connect(("localhost", 9999))
+        print("Connection established")
+        receive_thread = threading.Thread(target=receive_msg)
+        receive_thread.daemon = True
+        receive_thread.start()
+        return True
     except ConnectionRefusedError:
-        print("❌Connection refused")
-    pass
+        print("Connection refused")
+        return False
+
+def send_request(payload):
+    try:
+        data = json.dumps(payload)
+        client_socket.send(data.encode('utf-8'))
+    except Exception as e:
+        print(f"Error while sending message: {e}")
+
 def register(username, password):
-    payload = {
-        "action": "reg",
-        "username": username,
-        "password": password
-    }
-    data = json.dumps(payload)
-    send_request(data)
+    send_request({"action": "reg", "username": username, "password": password})
 
 def auth(username, password):
-    payload = {
-        "action": "auth",
-        "username": username,
-        "password": password
-    }
-    data = json.dumps(payload)
-    send_request(data)
+    send_request({"action": "auth", "username": username, "password": password})
 
-def quit():
-    payload = {"action": "quit"}
-    data = json.dumps(payload)
-    send_request(data)
+def disconnect_server():
+    send_request({"action": "quit"})
+    client_socket.close()

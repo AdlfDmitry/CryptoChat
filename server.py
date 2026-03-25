@@ -1,35 +1,54 @@
 import socket
-from aes_key_gen import generate_key
-from db_connect import db_connect
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind(('localhost', 9999))
-server.listen()
-key = generate_key()
-db_connection = db_connect()
-if key is not None and db_connection is not None:
-    print("Server is running...")
-    print(key)
+import json
+import threading
+
+def handle_client(client_socket, addr):
+
+    print(f"Connection established with {addr} ")
     while True:
-        client_socket, addr = server.accept()
         try:
             msg = client_socket.recv(1024).decode('utf-8')
-            print(f"Data received: {msg}")
+            if not msg:
+                print(f"Client {addr} disconnected")
+                break
 
-            if msg == 'quit':
-                print("Closing connection...")
-                client_socket.close()
+            print(f"Received data from  {addr}: {msg}")
+            try:
+                data = json.loads(msg)
+            except json.JSONDecodeError:
+                print("Wrong data format")
                 continue
-            action, username, password = msg.split(':')
-            if action == "reg":
-            #Написать запрос к БД для записи нового пользователя
-                print(action)
+
+            action = data.get("action")
+            username = data.get("username")
+            password = data.get("password")
+
+            if action == 'quit':
+                print(f"Client {addr} disconnected manually")
+                break
+            elif action == "reg":
+                print(f"User registration: {username}")
             elif action == "auth":
-            #Написать запрос к БД для авторизации
-                print(action)
+                print(f"User authorization: {username}")
             else:
-                print("Invalid action")
-                client_socket.close()
+                print(f"Unknown action from {addr}")
+
+        except ConnectionResetError:
+            print(f"Connection with {addr} was closed")
+            break
         except Exception as e:
-            print(f"Connection Error{e}")
-            client_socket.close()
-            continue
+            print(f"Error with {addr}: {e}")
+            break
+    client_socket.close()
+
+if __name__ == "__main__":
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('localhost', 9999))
+    server.listen()
+    print("Server is running...")
+    while True:
+        client_socket, addr = server.accept()
+        client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
+        client_thread.start()
+
+        print(f"Active connections: {threading.active_count() - 1}")

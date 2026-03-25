@@ -6,5 +6,5 @@ def ecdh_key_gen():
         public_key = private_key.public_key()
         return private_key, public_key
     except Exception as e:
-        print(f"Помилка генерації: {e}")
-        return None
+        print(f"Key generation error: {e}")
+        return None,None

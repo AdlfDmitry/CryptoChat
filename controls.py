@@ -1,8 +1,6 @@
-from client import register, quit, auth
-from ecdh_key_gen import ecdh_key_gen
+from client import register, disconnect_server, auth, connect_to_server
 if __name__ == "__main__":
-    key_private, key_pub = ecdh_key_gen()
-    if key_private is not None and key_pub is not None:
+    if connect_to_server():
         close = False
         while not close:
             user_input = input("> ").lower().strip()
@@ -10,16 +8,16 @@ if __name__ == "__main__":
                 case "reg":
                     username = input("Enter login> ").lower()
                     password = input("Enter password> ")
-                    register(username,password)
+                    register(username, password)
                 case "quit":
-                    quit()
+                    disconnect_server()
                     close = True
                 case "auth":
                     username = input("Enter login> ").lower()
                     password = input("Enter password> ")
                     auth(username, password)
                 case _:
-                    print("❌!!")
-else:
-    print("❌missing keys")
-    close = True
+                    if user_input != "":
+                        print("Unknown command")
+    else:
+        print("Not connected")
