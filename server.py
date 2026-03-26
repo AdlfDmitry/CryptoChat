@@ -3,7 +3,9 @@ import json
 import threading
 from db_connect import db_connect
 db_connection = db_connect()
+
 def handle_client(client_sock, address):
+    authorized = False
     print(f"Connection established with {address} ")
     while True:
         try:
@@ -42,10 +44,21 @@ def handle_client(client_sock, address):
                             db_connection.commit()
                     except Exception as e:
                         print(f"Error while connecting to database: {e}")
+
             elif action == "auth":
-                print(f"User authorization: {username}")
-            else:
-                print(f"Unknown action from {address}")
+                if db_connection is not None:
+                    print(f"User authorization: {username}")
+                    try:
+                        with db_connection.cursor() as cursor:
+                            cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
+                            result = cursor.fetchone()
+                            if result and result[0] == password:
+                                print(f"User {username} authenticated")
+                                authorized = True
+                            else:
+                                print("Invalid username or password")
+                    except Exception as e:
+                        print(f"Database error: {e}")
 
         except ConnectionResetError:
             print(f"Connection with {address} was closed")
