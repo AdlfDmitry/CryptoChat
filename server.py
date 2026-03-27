@@ -1,8 +1,7 @@
 import socket
 import json
 import threading
-from db_connect import db_connect
-db_connection = db_connect()
+from user_actions import *
 
 def handle_client(client_sock, address):
     authorized = False
@@ -28,37 +27,18 @@ def handle_client(client_sock, address):
             if action == 'quit':
                 print(f"Client {address} disconnected manually")
                 break
+
             elif action == "reg":
-                print(f"User registration: {username}")
-                if db_connection is not None:
-                    try:
-                        with (db_connection.cursor() as cursor):
-                            insert_query = """
-                                INSERT INTO users (username, password, last_seen_ip)
-                                VALUES (%s, %s, %s)
-                                RETURNING user_id;
-                            """
-                            ip_addr = address[0]
-                            user_data = (username, password, ip_addr)
-                            cursor.execute(insert_query,user_data)
-                            db_connection.commit()
-                    except Exception as e:
-                        print(f"Error while connecting to database: {e}")
+                try:
+                    registration(username, password, address[0])
+                except Exception as e:
+                    print(f"Error with {address} registration : {e}")
 
             elif action == "auth":
-                if db_connection is not None:
-                    print(f"User authorization: {username}")
-                    try:
-                        with db_connection.cursor() as cursor:
-                            cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
-                            result = cursor.fetchone()
-                            if result and result[0] == password:
-                                print(f"User {username} authenticated")
-                                authorized = True
-                            else:
-                                print("Invalid username or password")
-                    except Exception as e:
-                        print(f"Database error: {e}")
+                try:
+                    authentication(username, password)
+                except Exception as e:
+                    print(f"Error with {address} authentication : {e}")
 
         except ConnectionResetError:
             print(f"Connection with {address} was closed")
