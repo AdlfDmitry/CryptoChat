@@ -1,4 +1,4 @@
-from client import register, disconnect_server, auth, connect_to_server
+from client import register, disconnect_server, auth, connect_to_server, write_message, logout
 if __name__ == "__main__":
     if connect_to_server():
         close = False
@@ -16,8 +16,15 @@ if __name__ == "__main__":
                     username = input("Enter login> ").lower()
                     password = input("Enter password> ")
                     auth(username, password)
+                case "msg":
+                    dst_username = input("Enter receiver user name> ").lower()
+                    text = input("Enter message> ")
+                    write_message(dst_username, text, username)
+                case "logout":
+                    logout()
                 case _:
                     if user_input != "":
                         print("Unknown command")
+
     else:
         print("Not connected")

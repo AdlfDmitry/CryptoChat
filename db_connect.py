@@ -1,12 +1,14 @@
 import psycopg2
+from connect_conf import dbname, user, password, host, port
+
 def db_connect():
     try:
         connection = psycopg2.connect(
-            dbname="CryptochatDB",
-            user="postgres",
-            password="12345678",
-            host="127.0.0.1",
-            port="5432"
+            dbname=dbname,
+            user=user,
+            password=password,
+            host=host,
+            port=port
         )
         print("Database connection established.")
         return connection
