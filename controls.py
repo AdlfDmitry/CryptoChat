@@ -1,4 +1,5 @@
 from client import register, disconnect_server, auth, connect_to_server, write_message, logout
+
 if __name__ == "__main__":
     if connect_to_server():
         close = False

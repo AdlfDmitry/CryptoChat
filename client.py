@@ -1,8 +1,9 @@
 import socket
 import json
 import threading
+from ecdh_key_gen import ecdh_key_gen
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
+private_key, public_key = ecdh_key_gen()
 def receive_msg():
     while True:
         try:
@@ -29,11 +30,20 @@ def receive_msg():
             print(f"\nConnection lost: {e}")
             break
 
+def send_ecdh_key():
+    client_socket.sendall(public_key)
+
+def get_ecdh_key():
+    server_pub_bytes = client_socket.recv(32)
+    return server_pub_bytes
 
 def connect_to_server():
     try:
         client_socket.connect(("localhost", 9999))
+        send_ecdh_key()
+        server_key = get_ecdh_key()
         print("Connection established")
+        print(server_key)
         receive_thread = threading.Thread(target=receive_msg)
         receive_thread.daemon = True
         receive_thread.start()

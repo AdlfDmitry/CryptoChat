@@ -2,11 +2,26 @@ import socket
 import json
 import threading
 from user_actions import registration, authentication
+from ecdh_key_gen import ecdh_key_gen
 active_users = {}
 
 def handle_client(client_sock, address):
     current_user = None
     print(f"Connection established with {address} ")
+    try:
+        private_key, public_key = ecdh_key_gen()
+        client_pub_bytes = client_sock.recv(32)
+        print(client_pub_bytes)
+        client_sock.sendall(public_key)
+    except ConnectionResetError:
+        print(f"Connection with {address} was closed")
+        return
+
+    if len(client_pub_bytes) < 32:
+        print(f"Failed to receive key from {address}")
+        client_sock.close()
+        return
+
     while True:
         try:
             msg = client_sock.recv(1024).decode('utf-8')
