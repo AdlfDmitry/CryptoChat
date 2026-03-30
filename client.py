@@ -1,9 +1,11 @@
 import socket
 import json
 import threading
-from ecdh_key_gen import ecdh_key_gen
+from ecdh_key_gen import ecdh_key_gen, derive_aes_key
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 private_key, public_key = ecdh_key_gen()
+server_aes_key = None
+
 def receive_msg():
     while True:
         try:
@@ -42,8 +44,15 @@ def connect_to_server():
         client_socket.connect(("localhost", 9999))
         send_ecdh_key()
         server_key = get_ecdh_key()
-        print("Connection established")
-        print(server_key)
+
+        if server_key and len(server_key) == 32:
+            server_aes_key = derive_aes_key(private_key, server_key)
+            print("Connection established, AES key:", server_aes_key)
+        else:
+            print("Connection refused")
+            return False
+
+        print("Server key: ", server_key)
         receive_thread = threading.Thread(target=receive_msg)
         receive_thread.daemon = True
         receive_thread.start()

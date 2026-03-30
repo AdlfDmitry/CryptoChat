@@ -2,17 +2,24 @@ import socket
 import json
 import threading
 from user_actions import registration, authentication
-from ecdh_key_gen import ecdh_key_gen
+from ecdh_key_gen import ecdh_key_gen,derive_aes_key
 active_users = {}
 
 def handle_client(client_sock, address):
     current_user = None
+    client_aes_key = None
     print(f"Connection established with {address} ")
     try:
         private_key, public_key = ecdh_key_gen()
         client_pub_bytes = client_sock.recv(32)
-        print(client_pub_bytes)
+        print("Client public key:  ", client_pub_bytes)
         client_sock.sendall(public_key)
+        if len(client_pub_bytes) ==32:
+            client_aes_key = derive_aes_key(private_key, client_pub_bytes)
+            print("AES key generated:  ", client_aes_key)
+        else:
+            print("AES key not generated")
+            client_sock.close()
     except ConnectionResetError:
         print(f"Connection with {address} was closed")
         return
