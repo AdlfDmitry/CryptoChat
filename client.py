@@ -1,33 +1,29 @@
 import socket
-import json
 import threading
 from ecdh_key_gen import ecdh_key_gen, derive_aes_key
+from crypto_utils import send_encrypted, recv_encrypted
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 private_key, public_key = ecdh_key_gen()
-server_aes_key = None
+aes_key = None
 
 def receive_msg():
     while True:
         try:
-            msg = client_socket.recv(1024).decode("utf-8")
-            if not msg:
+            data = recv_encrypted(client_socket, aes_key)
+            if not data:
                 print("\n Connection lost")
                 break
-            try:
-                data = json.loads(msg)
-            except json.JSONDecodeError:
-                print("\nWrong data format")
-                continue
 
             if data.get("action") == "incoming_msg":
                 sender = data["from"]
                 text = data["text"]
                 print(f"{sender}: {text}")
+
             else:
                 info = data.get("info")
                 print(f"Server info: {info}")
-
             print("> ", end="", flush=True)
+
         except Exception as e:
             print(f"\nConnection lost: {e}")
             break
@@ -40,31 +36,31 @@ def get_ecdh_key():
     return server_pub_bytes
 
 def connect_to_server():
+    global aes_key
     try:
         client_socket.connect(("localhost", 9999))
         send_ecdh_key()
         server_key = get_ecdh_key()
 
         if server_key and len(server_key) == 32:
-            server_aes_key = derive_aes_key(private_key, server_key)
-            print("Connection established, AES key:", server_aes_key)
+            aes_key = derive_aes_key(private_key, server_key)
         else:
-            print("Connection refused")
+            print("Handshake failed")
             return False
 
-        print("Server key: ", server_key)
         receive_thread = threading.Thread(target=receive_msg)
         receive_thread.daemon = True
         receive_thread.start()
         return True
+
     except ConnectionRefusedError:
         print("Connection refused")
         return False
 
 def send_request(payload):
     try:
-        data = json.dumps(payload)
-        client_socket.send(data.encode('utf-8'))
+        if aes_key:
+            send_encrypted(client_socket, aes_key, payload)
     except Exception as e:
         print(f"Error while sending message: {e}")
 

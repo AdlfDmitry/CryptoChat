@@ -1,47 +1,36 @@
 import socket
-import json
 import threading
 from user_actions import registration, authentication
 from ecdh_key_gen import ecdh_key_gen,derive_aes_key
+from crypto_utils import send_encrypted, recv_encrypted
 active_users = {}
 
 def handle_client(client_sock, address):
     current_user = None
-    client_aes_key = None
+    aes_key = None
     print(f"Connection established with {address} ")
+
     try:
         private_key, public_key = ecdh_key_gen()
         client_pub_bytes = client_sock.recv(32)
-        print("Client public key:  ", client_pub_bytes)
         client_sock.sendall(public_key)
-        if len(client_pub_bytes) ==32:
-            client_aes_key = derive_aes_key(private_key, client_pub_bytes)
-            print("AES key generated:  ", client_aes_key)
-        else:
-            print("AES key not generated")
-            client_sock.close()
-    except ConnectionResetError:
-        print(f"Connection with {address} was closed")
-        return
 
-    if len(client_pub_bytes) < 32:
-        print(f"Failed to receive key from {address}")
+        if len(client_pub_bytes) ==32:
+            aes_key = derive_aes_key(private_key, client_pub_bytes)
+        else:
+            raise ValueError("Invalid key length")
+
+    except Exception as e:
+        print(f"Handshake failed with {address}: {e}")
         client_sock.close()
         return
 
     while True:
         try:
-            msg = client_sock.recv(1024).decode('utf-8')
-            if not msg:
+            data = recv_encrypted(client_sock, aes_key)
+            if not data:
                 print(f"Client {address} disconnected")
                 break
-
-            print(f"Received data from  {address}: {msg}")
-            try:
-                data = json.loads(msg)
-            except json.JSONDecodeError:
-                print("Wrong data format")
-                continue
 
             action = data.get("action")
             username = data.get("username")
@@ -49,59 +38,66 @@ def handle_client(client_sock, address):
 
             if action == 'quit':
                 print(f"Client {address} disconnected manually")
+                if current_user in active_users:
+                    del active_users[current_user]
+                send_encrypted(client_sock, aes_key, {"info": "Disconnected successfully"})
+                current_user = None
                 break
 
             elif action == "logout":
                 if current_user in active_users:
                     del active_users[current_user]
-                client_sock.sendall(json.dumps({"info": "Logged out successfully"}).encode('utf-8'))
+                send_encrypted(client_sock, aes_key, {"info": "Logged out successfully"})
                 current_user = None
 
             elif action == "reg":
                 if current_user is not None:
-                    client_sock.sendall(json.dumps({"info": "Already logged in"}).encode('utf-8'))
+                    send_encrypted(client_sock, aes_key, {"info": "Already logged in"})
                     print(f"Client {address} already logged in")
                 else:
-                    try:
-                        if registration(username, password):
-                            current_user = username
-                            active_users[current_user] = client_sock
-                            client_sock.sendall(json.dumps({"info": "Registered successfully"}).encode('utf-8'))
-                    except Exception as e:
-                        print(f"Error with {address} registration : {e}")
-                        client_sock.sendall(json.dumps({"info": "Registration failed"}).encode('utf-8'))
+                    if registration(username, password):
+                        current_user = username
+                        active_users[current_user] = {"sock": client_sock, "key": aes_key}
+                        send_encrypted(client_sock, aes_key, {"info": "Registered successfully"})
+                    else:
+                        send_encrypted(client_sock, aes_key, {"info": "Registration failed"})
 
             elif action == "auth":
                 if current_user is not None:
-                    client_sock.sendall(json.dumps({"info": "Already logged in"}).encode('utf-8'))
+                    send_encrypted(client_sock, aes_key, {"info": "Already logged in"})
                     print(f"Client {address} already logged in")
                 else:
                     try:
                         if authentication(username, password):
-                            client_sock.sendall(json.dumps({"info": "Authenticated successfully"}).encode('utf-8'))
+                            send_encrypted(client_sock, aes_key, {"info": "Authenticated successfully"})
                             current_user = username
-                            active_users[current_user] = client_sock
-
+                            active_users[current_user] = {"sock": client_sock, "key": aes_key}
+                        else:
+                            send_encrypted(client_sock, aes_key, {"info": "Authentication failed"})
                     except Exception as e:
                         print(f"Error with {address} authentication : {e}")
-                        client_sock.sendall(json.dumps({"info": "Authenticated failed"}).encode('utf-8'))
+                        send_encrypted(client_sock, aes_key, {"info": "Authentication failed"})
 
             elif action == "msg":
                 if current_user:
                     dst_username = data.get("dst_username")
                     message_text = data.get("message")
+
                     if dst_username in active_users:
-                        dst_sock = active_users[dst_username]
+                        dst_data = active_users[dst_username]
+                        dst_sock = dst_data["sock"]
+                        dst_key = dst_data["key"]
+
                         forward_data = {
                             "action": "incoming_msg",
                             "from": current_user,
                             "text": message_text
                         }
-                        dst_sock.sendall(json.dumps(forward_data).encode('utf-8'))
+                        send_encrypted(dst_sock, dst_key, forward_data)
                     else:
-                        client_sock.sendall(json.dumps({"status": "error", "info": "User is offline"}).encode('utf-8'))
+                        send_encrypted(client_sock, aes_key, {"status": "error", "info": "User is offline"})
                 else:
-                    client_sock.sendall(json.dumps({"status": "error", "info": "Not authorized"}).encode('utf-8'))
+                    send_encrypted(client_sock, aes_key, {"status": "error", "info": "Not authorized"})
                     print(f"Client {address} is not authorized")
 
         except ConnectionResetError:
@@ -110,6 +106,7 @@ def handle_client(client_sock, address):
         except Exception as e:
             print(f"Error with {address}: {e}")
             break
+
     if current_user in active_users:
         del active_users[current_user]
     client_sock.close()

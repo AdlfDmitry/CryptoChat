@@ -2,6 +2,7 @@ from client import register, disconnect_server, auth, connect_to_server, write_m
 if __name__ == "__main__":
     if connect_to_server():
         close = False
+        username = None
         while not close:
             user_input = input("> ").lower().strip()
             match user_input:
