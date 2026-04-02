@@ -12,7 +12,7 @@ def registration(username, password):
         with db_connection.cursor() as cursor:
             insert_query = """
                            INSERT INTO users (username, password)
-                           VALUES (%s, %s) RETURNING user_id; \
+                           VALUES (%s, %s) RETURNING user_id; 
                            """
             user_data = (username, hash_password(password))
             cursor.execute(insert_query, user_data)
