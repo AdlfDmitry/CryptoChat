@@ -5,6 +5,7 @@ if __name__ == "__main__":
         username = None
         while not close:
             user_input = input("> ").lower().strip()
+            #реализовать отображение нынешнего пользователя
             match user_input:
                 case "reg":
                     username = input("Enter login> ").lower()

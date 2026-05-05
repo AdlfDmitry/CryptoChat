@@ -1,33 +1,19 @@
 import socket
 import threading
+import ssl
 from user_actions import registration, authentication
-from ecdh_key_gen import ecdh_key_gen,derive_aes_key
-from crypto_utils import send_encrypted, recv_encrypted
+from network_utils import send_msg, recv_msg
+
 active_users = {}
+
 
 def handle_client(client_sock, address):
     current_user = None
-    aes_key = None
-    print(f"Connection established with {address} ")
-
-    try:
-        private_key, public_key = ecdh_key_gen()
-        client_pub_bytes = client_sock.recv(32)
-        client_sock.sendall(public_key)
-
-        if len(client_pub_bytes) ==32:
-            aes_key = derive_aes_key(private_key, client_pub_bytes)
-        else:
-            raise ValueError("Invalid key length")
-
-    except Exception as e:
-        print(f"Handshake failed with {address}: {e}")
-        client_sock.close()
-        return
+    print(f"Secure connection established with {address}\n")
 
     while True:
         try:
-            data = recv_encrypted(client_sock, aes_key)
+            data = recv_msg(client_sock)
             if not data:
                 print(f"Client {address} disconnected")
                 break
@@ -40,43 +26,36 @@ def handle_client(client_sock, address):
                 print(f"Client {address} disconnected manually")
                 if current_user in active_users:
                     del active_users[current_user]
-                send_encrypted(client_sock, aes_key, {"info": "Disconnected successfully"})
-                current_user = None
+                send_msg(client_sock, {"info": "Disconnected successfully"})
                 break
 
             elif action == "logout":
                 if current_user in active_users:
                     del active_users[current_user]
-                send_encrypted(client_sock, aes_key, {"info": "Logged out successfully"})
+                send_msg(client_sock, {"info": "Logged out successfully"})
                 current_user = None
 
             elif action == "reg":
                 if current_user is not None:
-                    send_encrypted(client_sock, aes_key, {"info": "Already logged in"})
-                    print(f"Client {address} already logged in")
+                    send_msg(client_sock, {"info": "Already logged in"})
                 else:
                     if registration(username, password):
                         current_user = username
-                        active_users[current_user] = {"sock": client_sock, "key": aes_key}
-                        send_encrypted(client_sock, aes_key, {"info": "Registered successfully"})
+                        active_users[current_user] = client_sock
+                        send_msg(client_sock, {"info": "Registered successfully"})
                     else:
-                        send_encrypted(client_sock, aes_key, {"info": "Registration failed"})
+                        send_msg(client_sock, {"info": "Registration failed"})
 
             elif action == "auth":
                 if current_user is not None:
-                    send_encrypted(client_sock, aes_key, {"info": "Already logged in"})
-                    print(f"Client {address} already logged in")
+                    send_msg(client_sock, {"info": "Already logged in"})
                 else:
-                    try:
-                        if authentication(username, password):
-                            send_encrypted(client_sock, aes_key, {"info": "Authenticated successfully"})
-                            current_user = username
-                            active_users[current_user] = {"sock": client_sock, "key": aes_key}
-                        else:
-                            send_encrypted(client_sock, aes_key, {"info": "Authentication failed"})
-                    except Exception as e:
-                        print(f"Error with {address} authentication : {e}")
-                        send_encrypted(client_sock, aes_key, {"info": "Authentication failed"})
+                    if authentication(username, password):
+                        send_msg(client_sock, {"info": "Authenticated successfully"})
+                        current_user = username
+                        active_users[current_user] = client_sock
+                    else:
+                        send_msg(client_sock, {"info": "Authentication failed"})
 
             elif action == "msg":
                 if current_user:
@@ -84,24 +63,20 @@ def handle_client(client_sock, address):
                     message_text = data.get("message")
 
                     if dst_username in active_users:
-                        dst_data = active_users[dst_username]
-                        dst_sock = dst_data["sock"]
-                        dst_key = dst_data["key"]
-
+                        dst_sock = active_users[dst_username]
                         forward_data = {
                             "action": "incoming_msg",
                             "from": current_user,
                             "text": message_text
                         }
-                        send_encrypted(dst_sock, dst_key, forward_data)
+                        send_msg(dst_sock, forward_data)
                     else:
-                        send_encrypted(client_sock, aes_key, {"status": "error", "info": "User is offline"})
+                        send_msg(client_sock, {"status": "error", "info": "User is offline"})
                 else:
-                    send_encrypted(client_sock, aes_key, {"status": "error", "info": "Not authorized"})
-                    print(f"Client {address} is not authorized")
+                    send_msg(client_sock, {"status": "error", "info": "Not authorized"})
 
         except ConnectionResetError:
-            print(f"Connection with {address} was closed")
+            print(f"Connection with {address} was reset")
             break
         except Exception as e:
             print(f"Error with {address}: {e}")
@@ -111,15 +86,30 @@ def handle_client(client_sock, address):
         del active_users[current_user]
     client_sock.close()
 
+
 if __name__ == "__main__":
+    #добавить вывод айпи и порта на котором происходит хост
+    #реализовать изменение ключей после каждого сообщения
+    #реализовать сохранение сообщений на сервере которые были отправлены офлайн пользователю
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(('localhost', 9999))
     server.listen()
-    print("Server is running...")
-    while True:
-        client_socket, addr = server.accept()
-        client_thread = threading.Thread(target = handle_client, args = (client_socket, addr))
-        client_thread.start()
 
-        print(f"Active connections: {threading.active_count() - 1}")
+    secure_server = context.wrap_socket(server, server_side=True)
+
+    print("Secure Server (TLS 1.3) is running...")
+    while True:
+        try:
+            client_socket, addr = secure_server.accept()
+            client_thread = threading.Thread(target=handle_client, args=(client_socket, addr))
+            client_thread.start()
+            print(f"Used encryption with {addr} : {client_socket.cipher()}")
+            print(f"Active connections: {threading.active_count() - 1}")
+
+        except ssl.SSLError as e:
+            print(f"TLS handshake failed: {e}")

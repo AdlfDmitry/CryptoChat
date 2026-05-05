@@ -3,7 +3,7 @@ from hash import hash_password, check_password
 db_connection = db_connect()
 
 
-def registration(username, password):
+def registration(username, password):      #Дописать проверку на уже существующий юзернейм + нестандартный юз
     if db_connection is None:
         print("Database is disconnected")
         return False
