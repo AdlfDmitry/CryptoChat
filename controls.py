@@ -1,26 +1,32 @@
+import time
+import client
 from client import register, disconnect_server, auth, connect_to_server, write_message, logout
 if __name__ == "__main__":
     if connect_to_server():
         close = False
-        username = None
         while not close:
-            user_input = input("> ").lower().strip()
+            time.sleep(0.25)
+            prompt_text = f"{client.logged_in_user}> " if client.logged_in_user else "> "
+            user_input = input(prompt_text).lower().strip()
             match user_input:
                 case "reg":
-                    username = input("Enter login> ").lower()
+                    req_username = input("Enter login> ").lower()
                     password = input("Enter password> ")
-                    register(username, password)
+                    register(req_username, password)
                 case "quit":
                     disconnect_server()
                     close = True
                 case "auth":
-                    username = input("Enter login> ").lower()
+                    req_username = input("Enter login> ").lower()
                     password = input("Enter password> ")
-                    auth(username, password)
+                    auth(req_username, password)
                 case "msg":
+                    if not client.logged_in_user:
+                        print("Please authenticate first.")
+                        continue
                     dst_username = input("Enter receiver user name> ").lower()
                     text = input("Enter message> ")
-                    write_message(dst_username, text, username)
+                    write_message(dst_username, text, client.logged_in_user)
                 case "logout":
                     logout()
                 case _:
